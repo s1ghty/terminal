@@ -16,10 +16,20 @@ begin
         Result := 'user';
 end;
 
-procedure ShowDir;
+function GetCurrentFolderName: string;
 begin
-    write(GetUserName, ' ', GetCurrentDir, '$');
+  Result := ExtractFileName(GetCurrentDir);
+
+  if Result = '' then
+    Result := GetCurrentDir;
 end;
+
+procedure ShowPrompt;
 begin
-    writeln(ShowDir)
+  Write(GetUserName, ' ', GetCurrentFolderName, ' $ ');
+end;
+
+begin
+    ShowPrompt;
+    writeln;
 end.

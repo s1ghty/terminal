@@ -85,7 +85,7 @@ begin
 end;
 var
     cmd, arg, input: string;
-    SpaceFinder: integer;
+    SpacePos, ArgStart, ArgLength: integer;
 
 begin
     ClrScr;
@@ -95,11 +95,14 @@ begin
 
         { Separates the command and the argument }
         input := Trim(input);
-        SpaceFinder := Pos(' ', input);
-        if SpaceFinder > 0 then
+        SpacePos := Pos(' ', input);
+
+        if SpacePos > 0 then
         begin
-            cmd := Copy(input, 1, SpaceFinder - 1);
-            arg := Trim(Copy(input, SpaceFinder + 1, Length(input) - SpaceFinder));
+            cmd := Copy(input, 1, SpacePos - 1);
+            ArgStart := SpacePos + 1;
+            ArgLength := Length(input) - SpacePos;
+            arg := Trim(Copy(input, ArgStart, ArgLength));
         end
         else
         begin

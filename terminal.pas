@@ -29,13 +29,13 @@ begin
     writeln(GetCurrentDir);
 end;
 
-{ Needs to be finished!!!
 procedure CmdCd(const Path: string);
 begin
-    SetCurrentDir(Path);
+    if Path = '' then
+        ChDir(GetUserDir)
+    else
+        ChDir(Path);
 end;
-}
-
 
 procedure CmdCat(const FileName: string);
 var
@@ -85,9 +85,11 @@ end;
 procedure CmdHelp;
 begin
     writeln('Available commands: ');
-    writeln('clear      - clear the screen');
+    writeln('cd        - change directory');
     writeln('pwd        - show current directory');
     writeln('touch FILE - create a file');
+    writeln('cat        - read a file');
+    writeln('clear      - clear the screen');
     writeln('exit       - exit terminal');
 end;
 
@@ -95,6 +97,9 @@ procedure ShowPrompt;
 begin
   Write(GetUserName, '@', GetCurrentFolderName, ' $ ');
 end;
+
+const
+    FirstCharPos = 1;
 var
     cmd, arg, input: string;
     SpacePos, ArgStart, ArgLength: integer;
@@ -111,8 +116,8 @@ begin
 
         if SpacePos > 0 then
         begin
-            cmd := Copy(input, 1, SpacePos - 1);
-            ArgStart := SpacePos + 1;
+            cmd := Copy(input, FirstCharPos, SpacePos - FirstCharPos);
+            ArgStart := SpacePos + FirstCharPos;
             ArgLength := Length(input) - SpacePos;
             arg := Trim(Copy(input, ArgStart, ArgLength));
         end
@@ -123,6 +128,7 @@ begin
         end;
 
         Case cmd of
+            'cd': CmdCd(arg);
             'cat': CmdCat(arg);
             'help': CmdHelp;
             'clear': ClrScr;

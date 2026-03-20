@@ -36,16 +36,28 @@ begin
 end;
 }
 
-{ Make Cat with Readln(filename, text) showmessage(text)
-procedure CmdCat;
+
+procedure CmdCat(const FileName: string);
+var
+    MyFile: TextFile;
+    text: string;
 begin
+    if not FileExists(FileName) then
+    begin
+        writeln('File not found: ', FileName);
+        exit;
+    end;
+
+    AssignFile(MyFile, FileName);
+    Reset(MyFile);
+
     while not eof(MyFile) do
     begin
         readln(MyFile, text);
-        ShowMessage(text)
+        writeln(text)
     end;
 end;
-}
+
 
 procedure CmdTouch(const FileName: string);
 var
@@ -111,6 +123,7 @@ begin
         end;
 
         Case cmd of
+            'cat': CmdCat(arg);
             'help': CmdHelp;
             'clear': ClrScr;
             'pwd': CmdPwd;

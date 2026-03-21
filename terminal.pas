@@ -34,6 +34,20 @@ begin
     writeln(GetCurrentDir);
 end;
 
+procedure CmdRf(const FileName: string);
+var
+  MyFile: TextFile;
+begin
+  if not FileExists(FileName) then
+  begin
+    writeln('File not found: ', FileName);
+    exit;
+  end;
+
+  assign(MyFile, FileName);
+  erase(MyFile);
+end;
+
 procedure CmdCd(const Path: string);
 begin
     if Path = '' then
@@ -87,7 +101,7 @@ begin
     writeln('File created: ', FileName);
 end;
 
-procedure CmdWriteFile(const FileName, UserText: string); 
+procedure CmdWriteFile(const FileName, UserText: string);
 var
   MyFile: TextFile;
 begin
@@ -164,6 +178,7 @@ begin
         end;
 
         Case cmd of
+          'rf': CmdRf(arg);
           'write': CmdWriteFile(arg, arg2);
           'echo': CmdEcho(arg);
           'cd': CmdCd(arg);

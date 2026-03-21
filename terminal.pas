@@ -43,7 +43,6 @@ begin
     writeln('File not found: ', FileName);
     exit;
   end;
-
   assign(MyFile, FileName);
   erase(MyFile);
 end;
@@ -101,14 +100,35 @@ begin
     writeln('File created: ', FileName);
 end;
 
+procedure CmdRename(const FileName, NewFileName: string);
+var
+  MyFile: TextFile;
+begin
+  assign(MyFile, FileName);
+  if FileExists(FileName) then
+    rename(MyFile, NewFileName)
+  else
+  begin
+    writeln('File does not exist: ', FileName);
+    exit;
+  end;
+  writeln('Successfully renamed the file!');
+end;
+
 procedure CmdWriteFile(const FileName, UserText: string);
 var
   MyFile: TextFile;
 begin
-   assign(MyFile, FileName);
-   rewrite(MyFile);
-   writeln(MyFile, UserText);
-   close(MyFile);
+  assign(MyFile, FileName);
+  if FileExists(FileName) then
+    append(MyFile)
+  else
+  begin
+    writeln('File does not exist. Creating one');
+    rewrite(MyFile);
+  end;
+  writeln(MyFile, UserText);
+  close(MyFile);
 end;
 
 procedure CmdHelp(const Topic: string);
@@ -122,12 +142,13 @@ begin
     if Topic = '' then
     begin
         writeln('Available commands: ');
-        writeln('cd         - change directory');
-        writeln('pwd        - show current directory');
-        writeln('touch FILE - create a file');
-        writeln('cat        - read a file');
-        writeln('clear      - clear the screen');
-        writeln('exit       - exit terminal');
+        writeln('write <FILE> <TEXT> - write text to a file');
+        writeln('cd                  - change directory');
+        writeln('pwd                 - show current directory');
+        writeln('touch <FILE>        - create a file');
+        writeln('cat                 - read a file');
+        writeln('clear               - clear the screen');
+        writeln('exit                - exit terminal');
         exit;
     end;
 end;
@@ -178,6 +199,7 @@ begin
         end;
 
         Case cmd of
+          'rename': CmdRename(arg, arg2);
           'rf': CmdRf(arg);
           'write': CmdWriteFile(arg, arg2);
           'echo': CmdEcho(arg);

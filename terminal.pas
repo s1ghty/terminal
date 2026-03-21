@@ -24,6 +24,11 @@ begin
     Result := GetCurrentDir;
 end;
 
+procedure CmdEcho(const UserInput: string);
+begin
+    writeln(UserInput);
+end;
+
 procedure CmdPwd;
 begin
     writeln(GetCurrentDir);
@@ -48,8 +53,8 @@ begin
         exit;
     end;
 
-    AssignFile(MyFile, FileName);
-    Reset(MyFile);
+    assign(MyFile, FileName);
+    reset(MyFile);
 
     while not eof(MyFile) do
     begin
@@ -75,22 +80,42 @@ begin
         exit;
     end;
 
-    AssignFile(MyFile, FileName);
-    Rewrite(MyFile);
-    CloseFile(MyFile);
+    assign(MyFile, FileName);
+    rewrite(MyFile);
+    close(MyFile);
 
     writeln('File created: ', FileName);
 end;
 
-procedure CmdHelp;
+procedure CmdWriteFile(const FileName, UserText: string); 
+var
+  MyFile: TextFile;
 begin
-    writeln('Available commands: ');
-    writeln('cd        - change directory');
-    writeln('pwd        - show current directory');
-    writeln('touch FILE - create a file');
-    writeln('cat        - read a file');
-    writeln('clear      - clear the screen');
-    writeln('exit       - exit terminal');
+   assign(MyFile, FileName);
+   rewrite(MyFile);
+   writeln(MyFile, UserText);
+   close(MyFile);
+end;
+
+procedure CmdHelp(const Topic: string);
+begin
+    if Topic = 'cd' then
+    begin
+      writeln('cd        - change directory');
+      writeln('cd ..     - go up one directory');
+      exit;
+    end;
+    if Topic = '' then
+    begin
+        writeln('Available commands: ');
+        writeln('cd         - change directory');
+        writeln('pwd        - show current directory');
+        writeln('touch FILE - create a file');
+        writeln('cat        - read a file');
+        writeln('clear      - clear the screen');
+        writeln('exit       - exit terminal');
+        exit;
+    end;
 end;
 
 procedure ShowPrompt;
@@ -101,7 +126,7 @@ end;
 const
     FirstCharPos = 1;
 var
-    cmd, arg, input: string;
+    cmd, arg, arg2, input: string;
     SpacePos, ArgStart, ArgLength: integer;
 
 begin
@@ -120,20 +145,33 @@ begin
             ArgStart := SpacePos + FirstCharPos;
             ArgLength := Length(input) - SpacePos;
             arg := Trim(Copy(input, ArgStart, ArgLength));
+            SpacePos := Pos(' ', arg);
+            if SpacePos > 0 then
+              begin
+                ArgStart := SpacePos + FirstCharPos;
+                ArgLength := Length(arg) - SpacePos;
+                arg2 := Trim(Copy(arg, ArgStart, ArgLength));
+                arg := Copy(arg, FirstCharPos, SpacePos - FirstCharPos);
+              end
+            else
+              arg2 := '';
         end
         else
         begin
             cmd := input;
             arg := '';
+            arg2 := '';
         end;
 
         Case cmd of
-            'cd': CmdCd(arg);
-            'cat': CmdCat(arg);
-            'help': CmdHelp;
-            'clear': ClrScr;
-            'pwd': CmdPwd;
-            'touch': CmdTouch(arg);
+          'write': CmdWriteFile(arg, arg2);
+          'echo': CmdEcho(arg);
+          'cd': CmdCd(arg);
+          'cat': CmdCat(arg);
+          'help': CmdHelp(arg);
+          'clear': ClrScr;
+          'pwd': CmdPwd;
+          'touch': CmdTouch(arg);
         end;
     until cmd = 'exit';
 end.

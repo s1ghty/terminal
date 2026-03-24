@@ -3,6 +3,8 @@ program terminal;
 
 uses
     crt, SysUtils;
+type
+  Separator = array of string;
 
 function GetUserName: string;
 begin
@@ -45,14 +47,17 @@ begin
   end;
   assign(MyFile, FileName);
   erase(MyFile);
+  writeln('File deleted successfully');
 end;
 
 procedure CmdCd(const Path: string);
 begin
     if Path = '' then
-        ChDir(GetUserDir)
+      ChDir(GetUserDir)
+    else if DirectoryExists(Path) then
+      ChDir(Path)
     else
-        ChDir(Path);
+      writeln('Directory does not exist.');
 end;
 
 procedure CmdCat(const FileName: string);
@@ -74,6 +79,7 @@ begin
         readln(MyFile, text);
         writeln(text)
     end;
+    close(MyFile);
 end;
 
 
@@ -142,15 +148,94 @@ begin
     if Topic = '' then
     begin
         writeln('Available commands: ');
-        writeln('write <FILE> <TEXT> - write text to a file');
-        writeln('cd                  - change directory');
-        writeln('pwd                 - show current directory');
-        writeln('touch <FILE>        - create a file');
-        writeln('cat                 - read a file');
-        writeln('clear               - clear the screen');
-        writeln('exit                - exit terminal');
+        writeln('rename <OLDNAME> <NEWNAME> - renames a file');
+        writeln('write <FILE> <TEXT>        - write text to a file');
+        writeln('cd                         - change directory');
+        writeln('pwd                        - show current directory');
+        writeln('touch <FILE>               - create a file');
+        writeln('cat                        - read a file');
+        writeln('clear                      - clear the screen');
+        writeln('exit                       - exit terminal');
         exit;
     end;
+end;
+
+procedure ExecuteCommand(const input: string);
+const
+  FirstCharPos = 1;
+var
+    cmd, arg, arg2, CleanInput: string;
+    SpacePos, ArgStart, ArgLength: integer;
+begin
+  CleanInput := Trim(input);
+  if CleanInput = '' then
+    exit;
+
+  SpacePos := Pos(' ', CleanInput);
+
+  if SpacePos > 0 then
+  begin
+      cmd := Copy(input, FirstCharPos, SpacePos - FirstCharPos);
+      ArgStart := SpacePos + FirstCharPos;
+      ArgLength := Length(input) - SpacePos;
+      arg := Trim(Copy(input, ArgStart, ArgLength));
+      SpacePos := Pos(' ', arg);
+      if SpacePos > 0 then
+        begin
+          ArgStart := SpacePos + FirstCharPos;
+          ArgLength := Length(arg) - SpacePos;
+          arg2 := Trim(Copy(arg, ArgStart, ArgLength));
+          arg := Copy(arg, FirstCharPos, SpacePos - FirstCharPos);
+        end
+      else
+        arg2 := '';
+  end
+  else
+  begin
+      cmd := input;
+      arg := '';
+      arg2 := '';
+  end;
+
+  Case cmd of
+    'rename': CmdRename(arg, arg2);
+    'rf': CmdRf(arg);
+    'write': CmdWriteFile(arg, arg2);
+    'echo': CmdEcho(arg);
+    'cd': CmdCd(arg);
+    'cat': CmdCat(arg);
+    'help': CmdHelp(arg);
+    'clear': ClrScr;
+    'pwd': CmdPwd;
+    'touch': CmdTouch(arg);
+  end;
+end;
+
+procedure ExecuteLine(const UserInput: string);
+const
+  FirstCharPos = 1;
+var
+  AndPos: integer;
+  CurrentCmd, Rest: string;
+begin
+  AndPos := Pos('&&', UserInput);
+
+  if AndPos > 0 then
+  begin
+    CurrentCmd := Trim(Copy(UserInput, FirstCharPos, AndPos - FirstCharPos));
+    Rest := Trim(Copy(UserInput, AndPos + 2, Length(UserInput)));
+
+    if CurrentCmd <> '' then
+      ExecuteCommand(CurrentCmd);
+
+    if Rest <> '' then
+      ExecuteLine(Rest);
+  end
+  else
+  begin
+    if Trim(UserInput) <> '' then
+      ExecuteCommand(Trim(UserInput));
+  end;
 end;
 
 procedure ShowPrompt;
@@ -158,57 +243,17 @@ begin
   Write(GetUserName, '@', GetCurrentFolderName, ' $ ');
 end;
 
-const
-    FirstCharPos = 1;
 var
-    cmd, arg, arg2, input: string;
-    SpacePos, ArgStart, ArgLength: integer;
-
+  UserInput: string;
 begin
     ClrScr;
     repeat
         ShowPrompt;
-        readln(input);
+        readln(UserInput);
+        UserInput := Trim(UserInput);
 
-        { Separates the command and the argument }
-        input := Trim(input);
-        SpacePos := Pos(' ', input);
-
-        if SpacePos > 0 then
-        begin
-            cmd := Copy(input, FirstCharPos, SpacePos - FirstCharPos);
-            ArgStart := SpacePos + FirstCharPos;
-            ArgLength := Length(input) - SpacePos;
-            arg := Trim(Copy(input, ArgStart, ArgLength));
-            SpacePos := Pos(' ', arg);
-            if SpacePos > 0 then
-              begin
-                ArgStart := SpacePos + FirstCharPos;
-                ArgLength := Length(arg) - SpacePos;
-                arg2 := Trim(Copy(arg, ArgStart, ArgLength));
-                arg := Copy(arg, FirstCharPos, SpacePos - FirstCharPos);
-              end
-            else
-              arg2 := '';
-        end
-        else
-        begin
-            cmd := input;
-            arg := '';
-            arg2 := '';
-        end;
-
-        Case cmd of
-          'rename': CmdRename(arg, arg2);
-          'rf': CmdRf(arg);
-          'write': CmdWriteFile(arg, arg2);
-          'echo': CmdEcho(arg);
-          'cd': CmdCd(arg);
-          'cat': CmdCat(arg);
-          'help': CmdHelp(arg);
-          'clear': ClrScr;
-          'pwd': CmdPwd;
-          'touch': CmdTouch(arg);
-        end;
-    until cmd = 'exit';
+        if UserInput = 'exit' then
+          break;
+        ExecuteLine(UserInput);
+    until false;
 end.

@@ -3,8 +3,6 @@ program terminal;
 
 uses
     crt, SysUtils;
-type
-  Separator = array of string;
 
 function GetUserName: string;
 begin
@@ -58,6 +56,29 @@ begin
       ChDir(Path)
     else
       writeln('Directory does not exist.');
+end;
+
+procedure CmdLs(const Path: string);
+var
+  FullPath: string;
+  FileInfo: TSearchRec;
+begin
+    FullPath := Path;
+    if Path = '' then
+      FullPath := GetCurrentDir;
+    if not DirectoryExists(FullPath) then
+    begin
+        writeln('Directory does not exist.');
+        exit;
+    end;
+
+    if FindFirst(FullPath + '/*', faAnyFile, FileInfo) = 0 then
+    begin
+        repeat
+            writeln(FileInfo.Name + #9 + IntToStr(FileInfo.Size));
+        until FindNext(FileInfo) <> 0;
+        FindClose(FileInfo);
+    end;
 end;
 
 procedure CmdCat(const FileName: string);
@@ -199,6 +220,7 @@ begin
 
   Case cmd of
     'rename': CmdRename(arg, arg2);
+    'ls': CmdLs(arg);
     'rf': CmdRf(arg);
     'write': CmdWriteFile(arg, arg2);
     'echo': CmdEcho(arg);
@@ -214,6 +236,7 @@ end;
 procedure ExecuteLine(const UserInput: string);
 const
   FirstCharPos = 1;
+  CmdBreak = 2;
 var
   AndPos: integer;
   CurrentCmd, Rest: string;
@@ -223,7 +246,7 @@ begin
   if AndPos > 0 then
   begin
     CurrentCmd := Trim(Copy(UserInput, FirstCharPos, AndPos - FirstCharPos));
-    Rest := Trim(Copy(UserInput, AndPos + 2, Length(UserInput)));
+    Rest := Trim(Copy(UserInput, AndPos + CmdBreak, Length(UserInput)));
 
     if CurrentCmd <> '' then
       ExecuteCommand(CurrentCmd);

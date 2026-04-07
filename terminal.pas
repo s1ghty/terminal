@@ -172,6 +172,7 @@ begin
         writeln('rename <OLDNAME> <NEWNAME> - renames a file');
         writeln('write <FILE> <TEXT>        - write text to a file');
         writeln('cd                         - change directory');
+        writeln('ls <DIRECTORY>             - list files in current directory');
         writeln('pwd                        - show current directory');
         writeln('touch <FILE>               - create a file');
         writeln('cat                        - read a file');

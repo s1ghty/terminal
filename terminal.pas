@@ -59,6 +59,8 @@ begin
 end;
 
 procedure CmdLs(const Path: string);
+const
+  Tabulation = #9;
 var
   FullPath: string;
   FileInfo: TSearchRec;
@@ -75,7 +77,8 @@ begin
     if FindFirst(FullPath + '/*', faAnyFile, FileInfo) = 0 then
     begin
         repeat
-            writeln(FileInfo.Name + #9 + IntToStr(FileInfo.Size));
+          if (FileInfo.Name <> '.') and (FileInfo.Name <> '..') then
+            writeln(FileInfo.Name);
         until FindNext(FileInfo) <> 0;
         FindClose(FileInfo);
     end;

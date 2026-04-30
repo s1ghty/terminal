@@ -4,6 +4,13 @@ program terminal;
 uses
     crt, SysUtils, Classes;
 
+const
+  MaxHistory = 10;
+var
+  SaveDir: string = '';
+  CommandHistory: array[1..MaxHistory] of string;
+  HistoryCount: integer = 0;
+
 function GetUserName: string;
 begin
     {$IFDEF WINDOWS}
@@ -49,13 +56,30 @@ begin
 end;
 
 procedure CmdCd(const Path: string);
+var
+  CurrentDir: string;
 begin
-    if Path = '' then
-      ChDir(GetUserDir)
-    else if DirectoryExists(Path) then
-      ChDir(Path)
-    else
-      writeln('Directory does not exist.');
+  CurrentDir := GetCurrentDir;
+
+  if Path = '' then
+    begin
+    SaveDir := CurrentDir;
+    ChDir(GetUserDir);
+    end
+  else if Path = '-' then
+    begin
+      if SaveDir = '' then
+        writeln('No previous directory.')
+      else
+      begin
+        ChDir(SaveDir);
+        SaveDir := CurrentDir;
+      end;
+    end
+  else if DirectoryExists(Path) then
+    ChDir(Path)
+  else
+    writeln('Directory does not exist.');
 end;
 
 procedure CmdLs(const Path: string);
@@ -175,7 +199,7 @@ begin
         writeln('rename <OLDNAME> <NEWNAME> - renames a file');
         writeln('write <FILE> <TEXT>        - write text to a file');
         writeln('cd                         - change directory');
-        writeln('ls <DIRECTORY>             - list files in current directory');
+        writeln('ls <DIR>                   - list files in current directory');
         writeln('rf <FILE>                  - remove a file');
         writeln('pwd                        - show current directory');
         writeln('touch <FILE>               - create a file');
@@ -184,7 +208,7 @@ begin
         writeln('exit                       - exit terminal');
         writeln('mkdir <DIR>                - create a directory');
         writeln('rmdir <DIR>                - remove a directory');
-        writeln('rm <DIRECTORY>             - remove a (non-empty) directory');
+        writeln('rm <DIR>                   - remove a (non-empty) directory');
         exit;
     end;
 end;
@@ -302,7 +326,7 @@ begin
     'echo': if Args.Count > 0 then CmdEcho(JoinStrings(Args, ' '));
     'write': if Args.Count > 0 then CmdWriteFile(Args[0], JoinStrings(Args, ' '));
     'touch': if Args.Count > 0 then CmdTouch(Args[0]);
-    'cat': if Args.Count > 0 then CmdCat(Args[0]);
+    'cat': if Args.Count > 0 then CmdCat(Args[0]) else writeln('Usage: cat <FILE>');
     'ls': if Args.Count > 0 then CmdLs(Args[0]) else CmdLs('');
     'pwd': CmdPwd;
     'cd': if Args.Count > 0 then CmdCd(Args[0]) else CmdCd('');
@@ -346,6 +370,27 @@ begin
     if Trim(UserInput) <> '' then
       ExecuteCommand(Trim(UserInput));
   end;
+end;
+
+procedure AddToHistory(const Command: string);
+var
+  i: integer;
+begin
+  if Trim(Command) = '' then
+      exit;
+
+  if HistoryCount < MaxHistory then
+  begin
+    Inc(HistoryCount);
+    CommandHistory[HistoryCount] := Command;
+  end
+  else
+  begin
+    for i := 1 to MaxHistory - 1 do
+      CommandHistory[i] := CommandHistory[i + 1];
+
+    CommandHistory[MaxHistory] := Command;
+    end;
 end;
 
 procedure ShowPrompt;

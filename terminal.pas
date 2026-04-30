@@ -2,7 +2,7 @@ program terminal;
 {$mode objfpc}
 
 uses
-    crt, SysUtils, Classes;
+    crt, SysUtils, Classes, Process;
 
 const
   MaxHistory = 10;
@@ -152,6 +152,11 @@ begin
     close(MyFile);
 
     writeln('File created: ', FileName);
+end;
+
+procedure CallVim(const ProgramName, Args: string);
+begin
+  ExecuteProcess(ProgramName, Args);
 end;
 
 procedure CmdRename(const FileName, NewFileName: string);
@@ -337,6 +342,7 @@ begin
     'mkdir': if Args.Count > 0 then CmdMkDir(Args[0]);
     'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]);
     'rm': if Args.Count > 0 then CmdRm(Args[0]);
+    'vim': if Args.Count > 0 then ExecuteProcess('/usr/bin/vim', Args[0]) else ExecuteProcess('/usr/bin/vim', '');
   else
     writeln('Command not found: ', Cmd);
   end;

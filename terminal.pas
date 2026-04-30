@@ -2,7 +2,7 @@ program terminal;
 {$mode objfpc}
 
 uses
-    crt, SysUtils;
+    crt, SysUtils, Classes;
 
 function GetUserName: string;
 begin
@@ -176,65 +176,148 @@ begin
         writeln('write <FILE> <TEXT>        - write text to a file');
         writeln('cd                         - change directory');
         writeln('ls <DIRECTORY>             - list files in current directory');
+        writeln('rf <FILE>                  - remove a file');
         writeln('pwd                        - show current directory');
         writeln('touch <FILE>               - create a file');
         writeln('cat                        - read a file');
         writeln('clear                      - clear the screen');
         writeln('exit                       - exit terminal');
+        writeln('mkdir <DIR>                - create a directory');
+        writeln('rmdir <DIR>                - remove a directory');
+        writeln('rm <DIRECTORY>             - remove a (non-empty) directory');
         exit;
     end;
 end;
 
-procedure ExecuteCommand(const input: string);
-const
-  FirstCharPos = 1;
-var
-    cmd, arg, arg2, CleanInput: string;
-    SpacePos, ArgStart, ArgLength: integer;
+procedure CmdMkDir(const DirName: string);
 begin
-  CleanInput := Trim(input);
-  if CleanInput = '' then
+  if DirectoryExists(DirName) then
+  begin
+    writeln('Directory already exists.');
     exit;
-
-  SpacePos := Pos(' ', CleanInput);
-
-  if SpacePos > 0 then
+  end;
+  if not ForceDirectories(DirName) then
   begin
-      cmd := Copy(input, FirstCharPos, SpacePos - FirstCharPos);
-      ArgStart := SpacePos + FirstCharPos;
-      ArgLength := Length(input) - SpacePos;
-      arg := Trim(Copy(input, ArgStart, ArgLength));
-      SpacePos := Pos(' ', arg);
-      if SpacePos > 0 then
-        begin
-          ArgStart := SpacePos + FirstCharPos;
-          ArgLength := Length(arg) - SpacePos;
-          arg2 := Trim(Copy(arg, ArgStart, ArgLength));
-          arg := Copy(arg, FirstCharPos, SpacePos - FirstCharPos);
-        end
-      else
-        arg2 := '';
-  end
-  else
+    writeln('Failed to create directory.');
+    exit;
+  end;
+end;
+
+procedure CmdRmDir(const DirName: string);
+begin
+  if not DirectoryExists(DirName) then
   begin
-      cmd := input;
-      arg := '';
-      arg2 := '';
+    writeln('Directory does not exist.');
+    exit;
+  end;
+  if not RemoveDir(DirName) then
+  begin
+    writeln('Failed to remove directory. Check if the directory is empty.');
+    exit;
+  end;
+end;
+
+procedure CmdRm(const DirName: string);
+var
+  Files: TSearchRec;
+begin
+  if not DirectoryExists(DirName) then
+  begin
+    writeln('Directory does not exist.');
+    exit;
+  end;
+  if FindFirst(IncludeTrailingPathDelimiter(DirName) + '*', faAnyFile, Files) = 0 then
+    begin
+      try
+        repeat
+          if (Files.Name <> '.') and (Files.Name <> '..') then
+          begin
+            if (Files.Attr and faDirectory <> 0) then
+              CmdRm(IncludeTrailingPathDelimiter(DirName) + Files.Name)
+            else
+              DeleteFile(IncludeTrailingPathDelimiter(DirName) + Files.Name);
+          end;
+        until FindNext(Files) <> 0;
+      finally
+        FindClose(Files);
+      end;
+    end;
+    RemoveDir(DirName);
   end;
 
-  Case cmd of
-    'rename': CmdRename(arg, arg2);
-    'ls': CmdLs(arg);
-    'rf': CmdRf(arg);
-    'write': CmdWriteFile(arg, arg2);
-    'echo': CmdEcho(arg);
-    'cd': CmdCd(arg);
-    'cat': CmdCat(arg);
-    'help': CmdHelp(arg);
-    'clear': ClrScr;
+function JoinStrings(const List: TStringList; const Delimiter: string): string;
+var
+  i: integer;
+begin
+  Result := '';
+  for i := 0 to List.Count - 1 do
+  begin
+    if i > 0 then
+      Result := Result + Delimiter;
+    Result := Result + List[i];
+  end;
+end;
+
+procedure ParseCommand(const Input: string; out Cmd: string; out Args: TStringList);
+var
+  i, StartPos: Integer;
+  CleanInput: string;
+begin
+  Args := TStringList.Create;
+  CleanInput := Trim(Input);
+  if CleanInput = '' then exit;
+
+  StartPos := 1;
+  for i := 1 to Length(CleanInput) do
+  begin
+    if CleanInput[i] = ' ' then
+    begin
+      if StartPos < i then
+        Args.Add(Copy(CleanInput, StartPos, i - StartPos));
+      StartPos := i + 1;
+    end;
+  end;
+
+  if StartPos <= Length(CleanInput) then
+    Args.Add(Copy(CleanInput, StartPos, Length(CleanInput) - StartPos + 1));
+
+  Cmd := Args[0];
+  Args.Delete(0);
+end;
+
+procedure ExecuteCommand(const input: string);
+var
+  Cmd: string;
+  Args: TStringList;
+begin
+  ParseCommand(input, Cmd, Args);
+
+  if Cmd = '' then
+  begin
+    Args.Free;
+    exit;
+  end;
+
+  case Cmd of
+    'echo': if Args.Count > 0 then CmdEcho(JoinStrings(Args, ' '));
+    'write': if Args.Count > 0 then CmdWriteFile(Args[0], JoinStrings(Args, ' '));
+    'touch': if Args.Count > 0 then CmdTouch(Args[0]);
+    'cat': if Args.Count > 0 then CmdCat(Args[0]);
+    'ls': if Args.Count > 0 then CmdLs(Args[0]) else CmdLs('');
     'pwd': CmdPwd;
-    'touch': CmdTouch(arg);
+    'cd': if Args.Count > 0 then CmdCd(Args[0]) else CmdCd('');
+    'rf': if Args.Count > 0 then CmdRf(Args[0]);
+    'rename': if Args.Count > 1 then CmdRename(Args[0], Args[1]);
+    'help': if Args.Count > 0 then CmdHelp(Args[0]) else CmdHelp('');
+    'clear': ClrScr;
+    'mkdir': if Args.Count > 0 then CmdMkDir(Args[0]);
+    'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]);
+    'rm': if Args.Count > 0 then CmdRm(Args[0]);
+  else
+    writeln('Command not found: ', Cmd);
   end;
+
+  Args.Free;
 end;
 
 procedure ExecuteLine(const UserInput: string);

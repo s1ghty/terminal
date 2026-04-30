@@ -372,6 +372,11 @@ begin
   end;
 end;
 
+procedure ShowPrompt;
+begin
+  Write(GetUserName, '@', GetCurrentFolderName, ' $ ');
+end;
+
 procedure AddToHistory(const Command: string);
 var
   i: integer;
@@ -393,22 +398,140 @@ begin
     end;
 end;
 
-procedure ShowPrompt;
+function ReadUserInput: string;
+var
+  Key: char;
+  UserInput: string;
+  HistoryIndex: integer;
+
+  procedure RedrawLine;
+  begin
+    Write(#13);
+    ClrEol;
+    ShowPrompt;
+    Write(UserInput);
+  end;
+
 begin
-  Write(GetUserName, '@', GetCurrentFolderName, ' $ ');
+  UserInput := '';
+  HistoryIndex := HistoryCount + 1;
+
+  while true do
+  begin
+    Key := ReadKey;
+
+    case Key of
+      #13:
+      begin
+        writeln;
+        Result := UserInput;
+        exit;
+      end;
+
+      #8, #127:
+      begin
+        if Length(UserInput) > 0 then
+        begin
+          Delete(UserInput, Length(UserInput), 1);
+          Write(#8, ' ', #8);
+        end;
+      end;
+
+      #0:
+      begin
+        Key := ReadKey;
+
+        case Key of
+          #72:
+          begin
+            if (HistoryCount > 0) and (HistoryIndex > 1) then
+            begin
+              Dec(HistoryIndex);
+              UserInput := CommandHistory[HistoryIndex];
+              RedrawLine;
+            end;
+          end;
+
+          #80:
+          begin
+            if HistoryIndex < HistoryCount then
+            begin
+              Inc(HistoryIndex);
+              UserInput := CommandHistory[HistoryIndex];
+            end
+            else
+            begin
+              HistoryIndex := HistoryCount + 1;
+              UserInput := '';
+            end;
+
+            RedrawLine;
+          end;
+        end;
+      end;
+
+      #27:
+      begin
+        Key := ReadKey;
+
+        if Key = '[' then
+        begin
+          Key := ReadKey;
+
+          case Key of
+            'A':
+            begin
+              if (HistoryCount > 0) and (HistoryIndex > 1) then
+              begin
+                Dec(HistoryIndex);
+                UserInput := CommandHistory[HistoryIndex];
+                RedrawLine;
+              end;
+            end;
+
+            'B':
+            begin
+              if HistoryIndex < HistoryCount then
+              begin
+                Inc(HistoryIndex);
+                UserInput := CommandHistory[HistoryIndex];
+              end
+              else
+              begin
+                HistoryIndex := HistoryCount + 1;
+                UserInput := '';
+              end;
+
+              RedrawLine;
+            end;
+          end;
+        end;
+      end;
+
+    else
+      if Key >= ' ' then
+      begin
+        UserInput := UserInput + Key;
+        Write(Key);
+      end;
+    end;
+  end;
 end;
 
 var
   UserInput: string;
 begin
-    ClrScr;
-    repeat
-        ShowPrompt;
-        readln(UserInput);
-        UserInput := Trim(UserInput);
+  ClrScr;
 
-        if UserInput = 'exit' then
-          break;
-        ExecuteLine(UserInput);
-    until false;
+  repeat
+    ShowPrompt;
+    UserInput := ReadUserInput;
+    UserInput := Trim(UserInput);
+
+    if UserInput = 'exit' then
+      break;
+
+    AddToHistory(UserInput);
+    ExecuteLine(UserInput);
+  until false;
 end.

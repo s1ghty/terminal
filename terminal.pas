@@ -31,6 +31,16 @@ begin
     Result := GetCurrentDir;
 end;
 
+function ConfirmDelete(const Path: string): boolean;
+var
+  Answer: string;
+begin
+  write('Are you sure you want to delete "', Path, '" and everything inside? [y/N] ');
+  readln(Answer);
+  Answer := LowerCase(Trim(Answer));
+  Result := (Answer = 'y') or (Answer = 'yes');
+end;
+
 procedure CmdEcho(const UserInput: string);
 begin
     writeln(UserInput);
@@ -41,18 +51,22 @@ begin
     writeln(GetCurrentDir);
 end;
 
-procedure CmdRf(const FileName: string);
-var
-  MyFile: TextFile;
+procedure CmdRmFile(const FileName: string);
 begin
-  if not FileExists(FileName) then
-  begin
-    writeln('File not found: ', FileName);
+  if FileName = '' then
+    begin
+    writeln('Usage: rf <FILE>');
     exit;
-  end;
-  assign(MyFile, FileName);
-  erase(MyFile);
-  writeln('File deleted successfully');
+    end;
+  if not FileExists(FileName) then
+    begin
+      writeln('File not found: ', FileName);
+      exit;
+    end;
+    if DeleteFile(FileName) then
+      writeln('File deleted successfully.')
+    else
+      writeln('Failed to delete file.');
 end;
 
 procedure CmdCd(const Path: string);
@@ -208,7 +222,6 @@ begin
         writeln('write <FILE> <TEXT>        - write text to a file');
         writeln('cd                         - change directory');
         writeln('ls <DIR>                   - list files in current directory');
-        writeln('rf <FILE>                  - remove a file');
         writeln('pwd                        - show current directory');
         writeln('touch <FILE>               - create a file');
         writeln('cat                        - read a file');
@@ -216,7 +229,8 @@ begin
         writeln('exit                       - exit terminal');
         writeln('mkdir <DIR>                - create a directory');
         writeln('rmdir <DIR>                - remove a directory');
-        writeln('rm <DIR>                   - remove a (non-empty) directory');
+        writeln('rm <FILE>                  - remove a file');
+        writeln('rm -r <DIR>                - remove a directory and everything inside');
         exit;
     end;
 end;
@@ -249,33 +263,88 @@ begin
   end;
 end;
 
-procedure CmdRm(const DirName: string);
+procedure CmdRmRecursive(const DirName: string);
 var
   Files: TSearchRec;
+  FullName: string;
 begin
   if not DirectoryExists(DirName) then
   begin
     writeln('Directory does not exist.');
     exit;
   end;
+
   if FindFirst(IncludeTrailingPathDelimiter(DirName) + '*', faAnyFile, Files) = 0 then
-    begin
-      try
-        repeat
-          if (Files.Name <> '.') and (Files.Name <> '..') then
-          begin
-            if (Files.Attr and faDirectory <> 0) then
-              CmdRm(IncludeTrailingPathDelimiter(DirName) + Files.Name)
-            else
-              DeleteFile(IncludeTrailingPathDelimiter(DirName) + Files.Name);
-          end;
-        until FindNext(Files) <> 0;
-      finally
-        FindClose(Files);
-      end;
+  begin
+    try
+      repeat
+        if (Files.Name <> '.') and (Files.Name <> '..') then
+        begin
+          FullName := IncludeTrailingPathDelimiter(DirName) + Files.Name;
+
+          if (Files.Attr and faDirectory) <> 0 then
+            CmdRmRecursive(FullName)
+          else
+            DeleteFile(FullName);
+        end;
+      until FindNext(Files) <> 0;
+    finally
+      FindClose(Files);
     end;
-    RemoveDir(DirName);
   end;
+
+  if RemoveDir(DirName) then
+    writeln('Directory deleted: ', DirName)
+  else
+    writeln('Failed to delete directory: ', DirName);
+end;
+
+procedure CmdRmCommand(const Args: TStringList);
+begin
+  if Args.Count = 0 then
+  begin
+    writeln('Usage: rm <FILE>');
+    writeln('Usage: rm -r <DIR>');
+    exit;
+  end;
+
+  if Args[0] = '-r' then
+  begin
+    if Args.Count < 2 then
+    begin
+      writeln('Usage: rm -r <DIR>');
+      exit;
+    end;
+
+    if not DirectoryExists(Args[1]) then
+    begin
+      writeln('Directory does not exist: ', Args[1]);
+      exit;
+    end;
+
+    if ConfirmDelete(Args[1]) then
+      CmdRmRecursive(Args[1])
+    else
+      writeln('Canceled.');
+
+    exit;
+  end;
+
+  if FileExists(Args[0]) then
+  begin
+    CmdRmFile(Args[0]);
+    exit;
+  end;
+
+  if DirectoryExists(Args[0]) then
+  begin
+    writeln('Cannot remove directory without -r.');
+    writeln('Use: rm -r ', Args[0]);
+    exit;
+  end;
+
+  writeln('File or directory not found: ', Args[0]);
+end;
 
 function JoinStrings(const List: TStringList; const Delimiter: string): string;
 var
@@ -346,13 +415,12 @@ begin
     'ls': if Args.Count > 0 then CmdLs(Args[0]) else CmdLs('');
     'pwd': CmdPwd;
     'cd': if Args.Count > 0 then CmdCd(Args[0]) else CmdCd('');
-    'rf': if Args.Count > 0 then CmdRf(Args[0]);
     'rename': if Args.Count > 1 then CmdRename(Args[0], Args[1]);
     'help': if Args.Count > 0 then CmdHelp(Args[0]) else CmdHelp('');
     'clear': ClrScr;
     'mkdir': if Args.Count > 0 then CmdMkDir(Args[0]);
     'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]);
-    'rm': if Args.Count > 0 then CmdRm(Args[0]);
+    'rm': CmdRmCommand(Args);
     'vim': if Args.Count > 0 then ExecuteProcess('/usr/bin/vim', Args[0]) else ExecuteProcess('/usr/bin/vim', '');
   else
     writeln('Command not found: ', Cmd);

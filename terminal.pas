@@ -77,7 +77,10 @@ begin
       end;
     end
   else if DirectoryExists(Path) then
-    ChDir(Path)
+  begin
+    SaveDir := CurrentDir;
+    ChDir(Path);
+  end
   else
     writeln('Directory does not exist.');
 end;
@@ -329,7 +332,15 @@ begin
 
   case Cmd of
     'echo': if Args.Count > 0 then CmdEcho(JoinStrings(Args, ' '));
-    'write': if Args.Count > 0 then CmdWriteFile(Args[0], JoinStrings(Args, ' '));
+    'write':
+    begin
+      if Args.Count > 1 then
+      begin
+        CmdWriteFile(Args[0], Copy(input, Pos(Args[1], input), Length(input)));
+      end
+      else
+        writeln('Usage: write <FILE> <TEXT>');
+    end;
     'touch': if Args.Count > 0 then CmdTouch(Args[0]);
     'cat': if Args.Count > 0 then CmdCat(Args[0]) else writeln('Usage: cat <FILE>');
     'ls': if Args.Count > 0 then CmdLs(Args[0]) else CmdLs('');

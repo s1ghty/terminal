@@ -31,6 +31,11 @@ begin
     Result := GetCurrentDir;
 end;
 
+function PromptLength: integer;
+begin
+  Result := Length(GetUserName) + 1 + Length(GetCurrentFolderName) + 3;
+end;
+
 function ConfirmDelete(const Path: string): boolean;
 var
   Answer: string;
@@ -55,7 +60,7 @@ procedure CmdRmFile(const FileName: string);
 begin
   if FileName = '' then
     begin
-    writeln('Usage: rf <FILE>');
+    writeln('Usage: rm <FILE>');
     exit;
     end;
   if not FileExists(FileName) then
@@ -117,12 +122,12 @@ begin
     begin
         repeat
           if (FileInfo.Name <> '.') and (FileInfo.Name <> '..') then
-            begin
-              if (FileInfo.Attr and faDirectory) <> 0 then
-                writeln('[DIR] ', FileInfo.Name)
-              else
-                writeln(FileInfo.Name);
-            end
+          begin
+            if (FileInfo.Attr and faDirectory) <> 0 then
+              writeln('[DIR] ', FileInfo.Name)
+            else
+              writeln('      ', FileInfo.Name);
+          end;
         until FindNext(FileInfo) <> 0;
         FindClose(FileInfo);
     end;
@@ -169,15 +174,13 @@ begin
     close(MyFile);
 end;
 
-
 procedure CmdTouch(const FileName: string);
 var
     MyFile: TextFile;
-
 begin
     if FileName = '' then
     begin
-        writeln('Invalid file name. Use a proper file name');
+        writeln('Usage: touch <FILE>');
         exit;
     end;
     if FileExists(FileName) then
@@ -229,6 +232,7 @@ begin
     begin
       writeln('cd        - change directory');
       writeln('cd ..     - go up one directory');
+      writeln('cd -      - go to previous directory');
       exit;
     end;
     if Topic = '' then
@@ -240,20 +244,28 @@ begin
         writeln('ls <DIR>                   - list files in current directory');
         writeln('pwd                        - show current directory');
         writeln('touch <FILE>               - create a file');
-        writeln('cat                        - read a file');
+        writeln('cat <FILE>                 - read a file');
+        writeln('cp <SOURCE> <DEST>         - copy a file');
         writeln('clear                      - clear the screen');
+        writeln('history                    - show command history');
         writeln('exit                       - exit terminal');
         writeln('mkdir <DIR>                - create a directory');
-        writeln('cp <SOURCE> <DESTINATION>  - copy a file');
         writeln('rmdir <DIR>                - remove a directory');
         writeln('rm <FILE>                  - remove a file');
         writeln('rm -r <DIR>                - remove a directory and everything inside');
+        writeln('whoami                     - show current user');
+        writeln('vim <FILE>                 - open file in vim');
         exit;
     end;
 end;
 
 procedure CmdMkDir(const DirName: string);
 begin
+  if DirName = '' then
+  begin
+    writeln('Usage: mkdir <DIR>');
+    exit;
+  end;
   if DirectoryExists(DirName) then
   begin
     writeln('Directory already exists.');
@@ -321,7 +333,7 @@ begin
   if Args.Count = 0 then
   begin
     writeln('Usage: rm <FILE>');
-    writeln('Usage: rm -r <DIR>');
+    writeln('       rm -r <DIR>');
     exit;
   end;
 
@@ -421,9 +433,7 @@ begin
     'write':
     begin
       if Args.Count > 1 then
-      begin
-        CmdWriteFile(Args[0], Copy(input, Length('write ') + Length(Args[0]) + 1, Length(input)));
-      end
+        CmdWriteFile(Args[0], Copy(input, Length('write ') + Length(Args[0]) + 1, Length(input)))
       else
         writeln('Usage: write <FILE> <TEXT>');
     end;
@@ -432,11 +442,11 @@ begin
     'ls': if Args.Count > 0 then CmdLs(Args[0]) else CmdLs('');
     'pwd': CmdPwd;
     'cd': if Args.Count > 0 then CmdCd(Args[0]) else CmdCd('');
-    'rename': if Args.Count > 1 then CmdRename(Args[0], Args[1]);
+    'rename': if Args.Count > 1 then CmdRename(Args[0], Args[1]) else writeln('Usage: rename <OLDNAME> <NEWNAME>');
     'help': if Args.Count > 0 then CmdHelp(Args[0]) else CmdHelp('');
     'clear': ClrScr;
-    'mkdir': if Args.Count > 0 then CmdMkDir(Args[0]);
-    'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]);
+    'mkdir': if Args.Count > 0 then CmdMkDir(Args[0]) else writeln('Usage: mkdir <DIR>');
+    'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]) else writeln('Usage: rmdir <DIR>');
     'rm': CmdRmCommand(Args);
     'cp': if Args.Count > 1 then CmdCopy(Args[0], Args[1]) else writeln('Usage: cp <SOURCE> <DESTINATION>');
     'vim': if Args.Count > 0 then ExecuteProcess('/usr/bin/vim', Args[0]) else ExecuteProcess('/usr/bin/vim', '');
@@ -496,15 +506,15 @@ begin
   begin
     for i := 1 to MaxHistory - 1 do
       CommandHistory[i] := CommandHistory[i + 1];
-
     CommandHistory[MaxHistory] := Command;
-    end;
+  end;
 end;
 
 function ReadUserInput: string;
 var
   Key: char;
   UserInput: string;
+  CursorPos: integer;
   HistoryIndex: integer;
 
   procedure RedrawLine;
@@ -513,10 +523,12 @@ var
     ClrEol;
     ShowPrompt;
     Write(UserInput);
+    GotoXY(PromptLength + CursorPos + 1, WhereY);
   end;
 
 begin
   UserInput := '';
+  CursorPos := 0;
   HistoryIndex := HistoryCount + 1;
 
   while true do
@@ -533,17 +545,17 @@ begin
 
       #8, #127:
       begin
-        if Length(UserInput) > 0 then
+        if CursorPos > 0 then
         begin
-          Delete(UserInput, Length(UserInput), 1);
-          Write(#8, ' ', #8);
+          Delete(UserInput, CursorPos, 1);
+          Dec(CursorPos);
+          RedrawLine;
         end;
       end;
 
       #0:
       begin
         Key := ReadKey;
-
         case Key of
           #72:
           begin
@@ -551,6 +563,7 @@ begin
             begin
               Dec(HistoryIndex);
               UserInput := CommandHistory[HistoryIndex];
+              CursorPos := Length(UserInput);
               RedrawLine;
             end;
           end;
@@ -567,8 +580,26 @@ begin
               HistoryIndex := HistoryCount + 1;
               UserInput := '';
             end;
-
+            CursorPos := Length(UserInput);
             RedrawLine;
+          end;
+
+          #75:
+          begin
+            if CursorPos > 0 then
+            begin
+              Dec(CursorPos);
+              GotoXY(PromptLength + CursorPos + 1, WhereY);
+            end;
+          end;
+
+          #77:
+          begin
+            if CursorPos < Length(UserInput) then
+            begin
+              Inc(CursorPos);
+              GotoXY(PromptLength + CursorPos + 1, WhereY);
+            end;
           end;
         end;
       end;
@@ -576,11 +607,9 @@ begin
       #27:
       begin
         Key := ReadKey;
-
         if Key = '[' then
         begin
           Key := ReadKey;
-
           case Key of
             'A':
             begin
@@ -588,6 +617,7 @@ begin
               begin
                 Dec(HistoryIndex);
                 UserInput := CommandHistory[HistoryIndex];
+                CursorPos := Length(UserInput);
                 RedrawLine;
               end;
             end;
@@ -604,8 +634,26 @@ begin
                 HistoryIndex := HistoryCount + 1;
                 UserInput := '';
               end;
-
+              CursorPos := Length(UserInput);
               RedrawLine;
+            end;
+
+            'C':
+            begin
+              if CursorPos < Length(UserInput) then
+              begin
+                Inc(CursorPos);
+                GotoXY(PromptLength + CursorPos + 1, WhereY);
+              end;
+            end;
+
+            'D':
+            begin
+              if CursorPos > 0 then
+              begin
+                Dec(CursorPos);
+                GotoXY(PromptLength + CursorPos + 1, WhereY);
+              end;
             end;
           end;
         end;
@@ -614,8 +662,9 @@ begin
     else
       if Key >= ' ' then
       begin
-        UserInput := UserInput + Key;
-        Write(Key);
+        Insert(Key, UserInput, CursorPos + 1);
+        Inc(CursorPos);
+        RedrawLine;
       end;
     end;
   end;

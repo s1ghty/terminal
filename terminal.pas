@@ -5,7 +5,7 @@ uses
     crt, SysUtils, Classes, Process;
 
 const
-  MaxHistory = 10;
+  MaxHistory = 1000;
 var
   SaveDir: string = '';
   CommandHistory: array[1..MaxHistory] of string;
@@ -100,8 +100,6 @@ begin
 end;
 
 procedure CmdLs(const Path: string);
-const
-  Tabulation = #9;
 var
   FullPath: string;
   FileInfo: TSearchRec;
@@ -119,10 +117,34 @@ begin
     begin
         repeat
           if (FileInfo.Name <> '.') and (FileInfo.Name <> '..') then
-            writeln(FileInfo.Name);
+            begin
+              if (FileInfo.Attr and faDirectory) <> 0 then
+                writeln('[DIR] ', FileInfo.Name)
+              else
+                writeln(FileInfo.Name);
+            end
         until FindNext(FileInfo) <> 0;
         FindClose(FileInfo);
     end;
+end;
+
+procedure CmdCopy(const Source, Destination: string);
+var
+  SL: TStringList;
+begin
+  if not FileExists(Source) then
+  begin
+    writeln('File not found: ', Source);
+    exit;
+  end;
+  SL := TStringList.Create;
+  try
+    SL.LoadFromFile(Source);
+    SL.SaveToFile(Destination);
+    writeln('Copied to ', Destination);
+  finally
+    SL.Free;
+  end;
 end;
 
 procedure CmdCat(const FileName: string);
@@ -153,14 +175,14 @@ var
     MyFile: TextFile;
 
 begin
-    if FileExists(FileName) then
-    begin
-        writeln('File already exists: ', FileName);
-        exit;
-    end;
     if FileName = '' then
     begin
         writeln('Invalid file name. Use a proper file name');
+        exit;
+    end;
+    if FileExists(FileName) then
+    begin
+        writeln('File already exists: ', FileName);
         exit;
     end;
 
@@ -171,23 +193,17 @@ begin
     writeln('File created: ', FileName);
 end;
 
-procedure CallVim(const ProgramName, Args: string);
-begin
-  ExecuteProcess(ProgramName, Args);
-end;
-
 procedure CmdRename(const FileName, NewFileName: string);
 var
   MyFile: TextFile;
 begin
-  assign(MyFile, FileName);
-  if FileExists(FileName) then
-    rename(MyFile, NewFileName)
-  else
-  begin
+  if not FileExists(FileName) then
+    begin
     writeln('File does not exist: ', FileName);
     exit;
   end;
+  assign(MyFile, FileName);
+  rename(MyFile, NewFileName);
   writeln('Successfully renamed the file!');
 end;
 
@@ -228,6 +244,7 @@ begin
         writeln('clear                      - clear the screen');
         writeln('exit                       - exit terminal');
         writeln('mkdir <DIR>                - create a directory');
+        writeln('cp <SOURCE> <DESTINATION>  - copy a file');
         writeln('rmdir <DIR>                - remove a directory');
         writeln('rm <FILE>                  - remove a file');
         writeln('rm -r <DIR>                - remove a directory and everything inside');
@@ -405,12 +422,12 @@ begin
     begin
       if Args.Count > 1 then
       begin
-        CmdWriteFile(Args[0], Copy(input, Pos(Args[1], input), Length(input)));
+        CmdWriteFile(Args[0], Copy(input, Length('write ') + Length(Args[0]) + 1, Length(input)));
       end
       else
         writeln('Usage: write <FILE> <TEXT>');
     end;
-    'touch': if Args.Count > 0 then CmdTouch(Args[0]);
+    'touch': if Args.Count > 0 then CmdTouch(Args[0]) else writeln('Usage: touch <FILE>');
     'cat': if Args.Count > 0 then CmdCat(Args[0]) else writeln('Usage: cat <FILE>');
     'ls': if Args.Count > 0 then CmdLs(Args[0]) else CmdLs('');
     'pwd': CmdPwd;
@@ -421,11 +438,12 @@ begin
     'mkdir': if Args.Count > 0 then CmdMkDir(Args[0]);
     'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]);
     'rm': CmdRmCommand(Args);
+    'cp': if Args.Count > 1 then CmdCopy(Args[0], Args[1]) else writeln('Usage: cp <SOURCE> <DESTINATION>');
     'vim': if Args.Count > 0 then ExecuteProcess('/usr/bin/vim', Args[0]) else ExecuteProcess('/usr/bin/vim', '');
+    'whoami': writeln(GetUserName);
   else
     writeln('Command not found: ', Cmd);
   end;
-
   Args.Free;
 end;
 

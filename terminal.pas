@@ -152,6 +152,18 @@ begin
   end;
 end;
 
+procedure CmdRmRecursive(const Source, Destination: string);
+begin
+  if not FileExists(Source) then
+    begin
+      writeln('File not found: ', Source);
+      exit;
+    end;
+  CmdCopy(Source, Destination);
+  DeleteFile(Source);
+  writeln('Moved to ', Destination);
+end;
+
 procedure CmdCat(const FileName: string);
 var
     MyFile: TextFile;
@@ -444,7 +456,7 @@ begin
     'cd': if Args.Count > 0 then CmdCd(Args[0]) else CmdCd('');
     'rename': if Args.Count > 1 then CmdRename(Args[0], Args[1]) else writeln('Usage: rename <OLDNAME> <NEWNAME>');
     'help': if Args.Count > 0 then CmdHelp(Args[0]) else CmdHelp('');
-    'clear': ClrScr;
+    'clear', 'cls': ClrScr;
     'mkdir': if Args.Count > 0 then CmdMkDir(Args[0]) else writeln('Usage: mkdir <DIR>');
     'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]) else writeln('Usage: rmdir <DIR>');
     'rm': CmdRmCommand(Args);

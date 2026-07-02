@@ -23,6 +23,11 @@ begin
         Result := 'user';
 end;
 
+function GetComputerName: string;
+begin
+  Result := GetEnvironmentVariable('HOSTNAME');
+end;
+
 function GetCurrentFolderName: string;
 begin
   Result := ExtractFileName(GetCurrentDir);
@@ -499,7 +504,7 @@ end;
 
 procedure ShowPrompt;
 begin
-  Write(GetUserName, '@', GetCurrentFolderName, ' $ ');
+  Write(GetUserName, '@', GetCurrentFolderName,' $ ');
 end;
 
 procedure AddToHistory(const Command: string);

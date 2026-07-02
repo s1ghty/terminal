@@ -157,7 +157,7 @@ begin
   end;
 end;
 
-procedure CmdRmRecursive(const Source, Destination: string);
+procedure CmdMoveFile(const Source, Destination: string);
 begin
   if not FileExists(Source) then
     begin
@@ -214,17 +214,16 @@ begin
 end;
 
 procedure CmdRename(const FileName, NewFileName: string);
-var
-  MyFile: TextFile;
 begin
   if not FileExists(FileName) then
     begin
     writeln('File does not exist: ', FileName);
     exit;
   end;
-  assign(MyFile, FileName);
-  rename(MyFile, NewFileName);
-  writeln('Successfully renamed the file!');
+  if RenameFile(FileName, NewFileName) then
+    writeln('Successfully renamed the file!')
+  else
+    writeln('Failed to rename the file.');
 end;
 
 procedure CmdWriteFile(const FileName, UserText: string);
@@ -263,6 +262,7 @@ begin
         writeln('touch <FILE>               - create a file');
         writeln('cat <FILE>                 - read a file');
         writeln('cp <SOURCE> <DEST>         - copy a file');
+        writeln('mv <SOURCE> <DEST>         - move/rename a file');
         writeln('clear                      - clear the screen');
         writeln('history                    - show command history');
         writeln('exit                       - exit terminal');
@@ -405,30 +405,120 @@ begin
   end;
 end;
 
+function JoinFromIndex(const List: TStringList; StartIndex: integer; const Delimiter: string): string;
+var
+  i: integer;
+begin
+  Result := '';
+  for i := StartIndex to List.Count - 1 do
+  begin
+    if i > StartIndex then
+      Result := Result + Delimiter;
+    Result := Result + List[i];
+  end;
+end;
+
+function FindOnPath(const ExeName: string): string;
+var
+  PathVar, Dir: string;
+  Dirs: TStringList;
+  i: integer;
+  Candidate: string;
+begin
+  Result := '';
+  PathVar := GetEnvironmentVariable('PATH');
+  if PathVar = '' then exit;
+
+  Dirs := TStringList.Create;
+  try
+    {$IFDEF WINDOWS}
+    Dirs.Delimiter := ';';
+    {$ELSE}
+    Dirs.Delimiter := ':';
+    {$ENDIF}
+    Dirs.StrictDelimiter := True;
+    Dirs.DelimitedText := PathVar;
+
+    for i := 0 to Dirs.Count - 1 do
+    begin
+      Dir := Dirs[i];
+      if Dir = '' then continue;
+      Candidate := IncludeTrailingPathDelimiter(Dir) + ExeName;
+      {$IFDEF WINDOWS}
+      if FileExists(Candidate + '.exe') then
+      begin
+        Result := Candidate + '.exe';
+        exit;
+      end;
+      {$ENDIF}
+      if FileExists(Candidate) then
+      begin
+        Result := Candidate;
+        exit;
+      end;
+    end;
+  finally
+    Dirs.Free;
+  end;
+end;
+
+function FindAndOutsideQuotes(const S: string): integer;
+var
+  i: integer;
+  InQuotes: boolean;
+begin
+  Result := 0;
+  InQuotes := False;
+  for i := 1 to Length(S) - 1 do
+  begin
+    if S[i] = '"' then
+      InQuotes := not InQuotes
+    else if (not InQuotes) and (S[i] = '&') and (S[i + 1] = '&') then
+    begin
+      Result := i;
+      exit;
+    end;
+  end;
+end;
+
 procedure ParseCommand(const Input: string; out Cmd: string; out Args: TStringList);
 var
-  i, StartPos: Integer;
-  CleanInput: string;
+  i: Integer;
+  CleanInput, CurrentToken: string;
+  InQuotes: Boolean;
+  ch: Char;
 begin
   Args := TStringList.Create;
+  Cmd := '';
   CleanInput := Trim(Input);
   if CleanInput = '' then exit;
 
-  StartPos := 1;
+  CurrentToken := '';
+  InQuotes := False;
+
   for i := 1 to Length(CleanInput) do
   begin
-    if CleanInput[i] = ' ' then
+    ch := CleanInput[i];
+    if ch = '"' then
+      InQuotes := not InQuotes
+    else if (ch = ' ') and not InQuotes then
     begin
-      if StartPos < i then
-        Args.Add(Copy(CleanInput, StartPos, i - StartPos));
-      StartPos := i + 1;
-    end;
+      if CurrentToken <> '' then
+      begin
+        Args.Add(CurrentToken);
+        CurrentToken := '';
+      end;
+    end
+    else
+      CurrentToken := CurrentToken + ch;
   end;
 
-  if StartPos <= Length(CleanInput) then
-    Args.Add(Copy(CleanInput, StartPos, Length(CleanInput) - StartPos + 1));
+  if CurrentToken <> '' then
+    Args.Add(CurrentToken);
 
-  Cmd := Args[0];
+  if Args.Count = 0 then exit;
+
+  Cmd := LowerCase(Args[0]);
   Args.Delete(0);
 end;
 
@@ -436,6 +526,7 @@ procedure ExecuteCommand(const input: string);
 var
   Cmd: string;
   Args: TStringList;
+  VimPath: string;
 begin
   ParseCommand(input, Cmd, Args);
 
@@ -450,7 +541,7 @@ begin
     'write':
     begin
       if Args.Count > 1 then
-        CmdWriteFile(Args[0], Copy(input, Length('write ') + Length(Args[0]) + 1, Length(input)))
+        CmdWriteFile(Args[0], JoinFromIndex(Args, 1, ' '))
       else
         writeln('Usage: write <FILE> <TEXT>');
     end;
@@ -466,7 +557,17 @@ begin
     'rmdir': if Args.Count > 0 then CmdRmDir(Args[0]) else writeln('Usage: rmdir <DIR>');
     'rm': CmdRmCommand(Args);
     'cp': if Args.Count > 1 then CmdCopy(Args[0], Args[1]) else writeln('Usage: cp <SOURCE> <DESTINATION>');
-    'vim': if Args.Count > 0 then ExecuteProcess('/usr/bin/vim', Args[0]) else ExecuteProcess('/usr/bin/vim', '');
+    'mv': if Args.Count > 1 then CmdMoveFile(Args[0], Args[1]) else writeln('Usage: mv <SOURCE> <DESTINATION>');
+    'vim':
+    begin
+      VimPath := FindOnPath('vim');
+      if VimPath = '' then
+        writeln('vim not found in PATH.')
+      else if Args.Count > 0 then
+        ExecuteProcess(VimPath, Args[0])
+      else
+        ExecuteProcess(VimPath, '');
+    end;
     'whoami': writeln(GetUserName);
   else
     writeln('Command not found: ', Cmd);
@@ -482,7 +583,7 @@ var
   AndPos: integer;
   CurrentCmd, Rest: string;
 begin
-  AndPos := Pos('&&', UserInput);
+  AndPos := FindAndOutsideQuotes(UserInput);
 
   if AndPos > 0 then
   begin
@@ -543,6 +644,33 @@ var
     GotoXY(PromptLength + CursorPos + 1, WhereY);
   end;
 
+  procedure HistoryUp;
+  begin
+    if (HistoryCount > 0) and (HistoryIndex > 1) then
+    begin
+      Dec(HistoryIndex);
+      UserInput := CommandHistory[HistoryIndex];
+      CursorPos := Length(UserInput);
+      RedrawLine;
+    end;
+  end;
+
+  procedure HistoryDown;
+  begin
+    if HistoryIndex < HistoryCount then
+    begin
+      Inc(HistoryIndex);
+      UserInput := CommandHistory[HistoryIndex];
+    end
+    else
+    begin
+      HistoryIndex := HistoryCount + 1;
+      UserInput := '';
+    end;
+    CursorPos := Length(UserInput);
+    RedrawLine;
+  end;
+
 begin
   UserInput := '';
   CursorPos := 0;
@@ -574,32 +702,9 @@ begin
       begin
         Key := ReadKey;
         case Key of
-          #72:
-          begin
-            if (HistoryCount > 0) and (HistoryIndex > 1) then
-            begin
-              Dec(HistoryIndex);
-              UserInput := CommandHistory[HistoryIndex];
-              CursorPos := Length(UserInput);
-              RedrawLine;
-            end;
-          end;
+          #72: HistoryUp;
 
-          #80:
-          begin
-            if HistoryIndex < HistoryCount then
-            begin
-              Inc(HistoryIndex);
-              UserInput := CommandHistory[HistoryIndex];
-            end
-            else
-            begin
-              HistoryIndex := HistoryCount + 1;
-              UserInput := '';
-            end;
-            CursorPos := Length(UserInput);
-            RedrawLine;
-          end;
+          #80: HistoryDown;
 
           #75:
           begin
@@ -628,32 +733,9 @@ begin
         begin
           Key := ReadKey;
           case Key of
-            'A':
-            begin
-              if (HistoryCount > 0) and (HistoryIndex > 1) then
-              begin
-                Dec(HistoryIndex);
-                UserInput := CommandHistory[HistoryIndex];
-                CursorPos := Length(UserInput);
-                RedrawLine;
-              end;
-            end;
+            'A': HistoryUp;
 
-            'B':
-            begin
-              if HistoryIndex < HistoryCount then
-              begin
-                Inc(HistoryIndex);
-                UserInput := CommandHistory[HistoryIndex];
-              end
-              else
-              begin
-                HistoryIndex := HistoryCount + 1;
-                UserInput := '';
-              end;
-              CursorPos := Length(UserInput);
-              RedrawLine;
-            end;
+            'B': HistoryDown;
 
             'C':
             begin
